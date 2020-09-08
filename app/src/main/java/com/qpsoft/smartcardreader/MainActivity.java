@@ -284,13 +284,6 @@ public class MainActivity extends AppCompatActivity {
             public void onRequest(AsyncHttpServerRequest request, AsyncHttpServerResponse response) {
                 response.send(JSON.toJSONString(idCardInfo));
                 idCardInfo = null;
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        llGroup.removeAllViews();
-                    }
-                });
-
             }
         });
 
