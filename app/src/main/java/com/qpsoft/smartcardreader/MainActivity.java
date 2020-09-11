@@ -1,7 +1,13 @@
 package com.qpsoft.smartcardreader;
 
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.content.Intent;
 import android.graphics.Bitmap;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.View;
 import android.view.WindowManager;
@@ -12,13 +18,19 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.blankj.utilcode.util.ActivityUtils;
+import com.blankj.utilcode.util.CacheDiskStaticUtils;
 import com.blankj.utilcode.util.LogUtils;
 import com.blankj.utilcode.util.NetworkUtils;
+import com.blankj.utilcode.util.ToastUtils;
 import com.koushikdutta.async.AsyncServer;
 import com.koushikdutta.async.http.server.AsyncHttpServer;
 import com.koushikdutta.async.http.server.AsyncHttpServerRequest;
 import com.koushikdutta.async.http.server.AsyncHttpServerResponse;
 import com.koushikdutta.async.http.server.HttpServerRequestCallback;
+import com.qpsoft.smartcardreader.bleservice.BlePeripheralCallback;
+import com.qpsoft.smartcardreader.bleservice.BlePeripheralUtils;
+import com.qpsoft.smartcardreader.utils.BtUtils;
 import com.reader.usbdevice.DeviceLib;
 import com.reader.usbdevice.DeviceStatusCallback;
 import com.uuzuche.lib_zxing.activity.CodeUtils;
@@ -30,8 +42,6 @@ import fynn.app.PromptDialog;
 public class MainActivity extends AppCompatActivity {
 
     private LinearLayout llGroup;
-    private LinearLayout llConnError;
-    private LinearLayout llConnOk;
 
     private DeviceLib mdev = null;
 
@@ -39,6 +49,15 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        startService(new Intent(this, BleService.class));
+        initBleCallBack();
+        new Handler().postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                showQrCode();
+            }
+        }, 5000);
 
         InitEditText();
         InitButton();
@@ -52,13 +71,11 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void UsbDeAttach() {
                 showToast(getString(R.string.dev_link_error));
-                llConnOk.setVisibility(View.GONE);
-                llConnError.setVisibility(View.VISIBLE);
             }
         });
         mdev.openDevice(100);
 
-        openHttpServer();
+        //openHttpServer();
 
         showString("等待获取读卡信息...");
     }
@@ -75,41 +92,10 @@ public class MainActivity extends AppCompatActivity {
 
     private void InitEditText() {
         llGroup = (LinearLayout)findViewById(R.id.ll);
-        llConnError = (LinearLayout)findViewById(R.id.llConnError);
-        llConnOk = (LinearLayout)findViewById(R.id.llConnOk);
     }
 
     private void InitButton() {
-        TextView tvSiCardRead = (TextView)findViewById(R.id.tvSi);
-        TextView tvCertCardRead = (TextView)findViewById(R.id.tvCert);
-        TextView tvShowQrCode = (TextView)findViewById(R.id.tvShowQrCode);
 
-        tvSiCardRead.setOnClickListener(new SampleOnClickListener());
-        tvCertCardRead.setOnClickListener(new SampleOnClickListener());
-        tvShowQrCode.setOnClickListener(new SampleOnClickListener());
-    }
-
-    private class SampleOnClickListener implements View.OnClickListener {
-        @Override
-        public void onClick(View view) {
-            try {
-                switch (view.getId()) {
-                    case R.id.tvCert:
-                        readIDCard();
-                        break;
-                    case R.id.tvSi:
-                        readSiCard();
-                        break;
-                    case R.id.tvShowQrCode:
-                        showQrCode();
-                        break;
-                    default:
-                        break;
-                }
-            } catch (SecurityException securityException) {
-                showToast(getString(R.string.error));
-            }
-        }
     }
 
     private CardInfo idCardInfo;
@@ -129,9 +115,6 @@ public class MainActivity extends AppCompatActivity {
 
         //beep
         mdev.ICC_PosBeep((byte) 10);
-
-        llConnOk.setVisibility(View.VISIBLE);
-        llConnError.setVisibility(View.GONE);
 
 //        Bitmap bm1 = mdev.getBmpfile();
 //        ImageView iv=new ImageView(this);
@@ -185,6 +168,8 @@ public class MainActivity extends AppCompatActivity {
         idCardInfo.setIssuingAuthority(mdev.getDepartment());
         idCardInfo.setStartValidateDate(mdev.getEffectDate());
         idCardInfo.setEndValidateDate(mdev.getExpireDate());
+
+        blePeripheralUtils.sendJson(JSON.toJSONString(idCardInfo));
     }
 
     private void readSiCard() {
@@ -202,9 +187,6 @@ public class MainActivity extends AppCompatActivity {
         try {
             //beep
             mdev.ICC_PosBeep((byte) 10);
-
-            llConnOk.setVisibility(View.VISIBLE);
-            llConnError.setVisibility(View.GONE);
 
             //showString("读卡成功："+ new String(cardInfo,"gbk"));
 
@@ -244,6 +226,8 @@ public class MainActivity extends AppCompatActivity {
                 idCardInfo.setStartValidateDate(startValidateDate);
                 idCardInfo.setEndValidateDate(endValidateDate);
                 idCardInfo.setKhNumber(khNumber);
+
+                blePeripheralUtils.sendJson(JSON.toJSONString(idCardInfo));
             }
         } catch (UnsupportedEncodingException e) {
             e.printStackTrace();
@@ -252,23 +236,18 @@ public class MainActivity extends AppCompatActivity {
 
 
     private void showQrCode() {
-        View dialogView = getLayoutInflater().inflate(R.layout.dialog_qrcode, null, false);
-        new PromptDialog.Builder(MainActivity.this)
-                .setTitle("小程序扫二维码")
-                .setView(dialogView)
-                .setCanceledOnTouchOutside(true)
-                .show();
-
-        ImageView ivQrCode = dialogView.findViewById(R.id.ivQrCode);
-        String ip = NetworkUtils.getIPAddress(true);
+        ImageView ivQrCode = findViewById(R.id.ivQrCode);
         JSONObject jsonObj = new JSONObject();
-        jsonObj.put("dataId", "32165488");
         jsonObj.put("type", "读卡器");
-        jsonObj.put("name", "hd-100");
-        jsonObj.put("endpoint", "http://"+ip+":"+listenPort+"/getCardData");
+        jsonObj.put("bluetooth_name", BtUtils.getName());
+        jsonObj.put("name", "Q1");
+        jsonObj.put("sn", Build.SERIAL);
+        jsonObj.put("service_uuid", AppConfig.UUID_SERVER);
+        jsonObj.put("notify_uuid", AppConfig.UUID_NOTIFY);
+        jsonObj.put("write_uuid", AppConfig.UUID_WRITE);
         String txtStr = jsonObj.toJSONString();
         LogUtils.e("qrcode-----------"+txtStr);
-        Bitmap qrBitmap = CodeUtils.createImage(txtStr, 300, 300, null);
+        Bitmap qrBitmap = CodeUtils.createImage(txtStr, 400, 400, null);
 
         ivQrCode.setImageBitmap(qrBitmap);
     }
@@ -290,6 +269,65 @@ public class MainActivity extends AppCompatActivity {
         // listen on port 5000
         server.listen(mAsyncServer, listenPort);
     }
+
+
+    BlePeripheralUtils blePeripheralUtils;
+    private void initBleCallBack() {
+        blePeripheralUtils = MyApp.getInstance().getBlePeripheralUtils(this);
+        //设置一个结果callback 方便把某些结果传到前面来
+        blePeripheralUtils.setBlePeripheralCallback(callback);
+    }
+
+    BlePeripheralCallback callback = new BlePeripheralCallback() {
+        @Override
+        public void onConnectionStateChange(final BluetoothDevice device, int status, final int newState) {
+            MainActivity.this.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (newState == 2) {
+                        //ToastUtils.showShort(device.getAddress()+"-----"+newState);
+                        ToastUtils.showShort("连接成功");
+                        sb.setLength(0);
+                    } else {
+                        ToastUtils.showShort("已断开");
+                    }
+                }
+            });
+        }
+        @Override
+        public void onCharacteristicWriteRequest(final BluetoothDevice device, int requestId, BluetoothGattCharacteristic characteristic, boolean preparedWrite, boolean responseNeeded, int offset, final byte[] requestBytes) {
+            MainActivity.this.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    String message = new String(requestBytes);
+                    String result = sb.append(message).toString();
+                    if (result.endsWith("}}")) {
+                        parseData(result);
+                        sb.setLength(0);
+                    }
+
+                }
+            });
+        }
+    };
+    private StringBuilder sb = new StringBuilder();
+
+    private void parseData(String message) {
+        if (message.contains("action")) {
+            JSONObject jsonObj = JSON.parseObject(message);
+            String action = jsonObj.getString("action");
+            if ("command".equals(action)) {
+                JSONObject payloadObj = jsonObj.getJSONObject("payload");
+                String cmd = payloadObj.getString("cmd");
+                if ("cert_card".equals(cmd)) {
+                    readIDCard();
+                } else if("si_card".equals(cmd)) {
+                    readSiCard();
+                }
+            }
+        }
+    }
+
 
 
     @Override
@@ -316,6 +354,10 @@ public class MainActivity extends AppCompatActivity {
         if (mAsyncServer != null) {
             mAsyncServer.stop();
         }
+
+        stopService(new Intent(this, BleService.class));
+
+        blePeripheralUtils.close();
         super.onDestroy();
     }
 
