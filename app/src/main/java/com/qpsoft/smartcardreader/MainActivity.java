@@ -18,6 +18,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.alibaba.fastjson.serializer.SerializerFeature;
 import com.blankj.utilcode.util.ActivityUtils;
 import com.blankj.utilcode.util.CacheDiskStaticUtils;
 import com.blankj.utilcode.util.LogUtils;
@@ -157,7 +158,7 @@ public class MainActivity extends AppCompatActivity {
         showString(show);
 
         idCardInfo = new CardInfo();
-        idCardInfo.setName(mdev.getName());
+        idCardInfo.setName(mdev.getName().trim());
         idCardInfo.setGender(mdev.getSex());
         idCardInfo.setNationality(mdev.getNation());
         idCardInfo.setBirthday(mdev.getBirth());
@@ -216,7 +217,7 @@ public class MainActivity extends AppCompatActivity {
 
 
                 idCardInfo = new CardInfo();
-                idCardInfo.setName(name);
+                idCardInfo.setName(name.trim());
                 //idCardInfo.setGender();
                 //idCardInfo.setNationality();
                 idCardInfo.setBirthday(birthday);

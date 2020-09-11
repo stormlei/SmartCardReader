@@ -100,4 +100,22 @@ public class CardInfo {
     public void setKhNumber(String khNumber) {
         this.khNumber = khNumber;
     }
+
+
+    @Override
+    public String toString() {
+        return "CardInfo{" +
+                "name='" + name + '\'' +
+                ", gender='" + gender + '\'' +
+                ", nationality='" + nationality + '\'' +
+                ", nativePlace='" + nativePlace + '\'' +
+                ", birthday='" + birthday + '\'' +
+                ", address='" + address + '\'' +
+                ", cardNumber='" + cardNumber + '\'' +
+                ", issuingAuthority='" + issuingAuthority + '\'' +
+                ", startValidateDate='" + startValidateDate + '\'' +
+                ", endValidateDate='" + endValidateDate + '\'' +
+                ", khNumber='" + khNumber + '\'' +
+                '}';
+    }
 }
