@@ -120,7 +120,7 @@ public class MainActivity extends AppCompatActivity {
         int nRt = mdev.PICC_ReadIDCardMsg(pkName);
         if( nRt != 0){
             showString("身份证读取失败，ret=" + nRt);
-            if (nRt == -2) sendRelaunch();
+            if (nRt == -4) sendRelaunch();
             return;
         }
 
