@@ -20,6 +20,7 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastjson.serializer.SerializerFeature;
 import com.blankj.utilcode.util.ActivityUtils;
+import com.blankj.utilcode.util.AppUtils;
 import com.blankj.utilcode.util.CacheDiskStaticUtils;
 import com.blankj.utilcode.util.LogUtils;
 import com.blankj.utilcode.util.NetworkUtils;
@@ -60,12 +61,12 @@ public class MainActivity extends AppCompatActivity {
             }
         }, 5000);
 
-//        new Handler().postDelayed(new Runnable() {
-//            @Override
-//            public void run() {
-//                showQrCode();
-//            }
-//        }, 5000);
+        new Handler().postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                showQrCode();
+            }
+        }, 5000);
 
         InitEditText();
         InitButton();
@@ -119,6 +120,7 @@ public class MainActivity extends AppCompatActivity {
         int nRt = mdev.PICC_ReadIDCardMsg(pkName);
         if( nRt != 0){
             showString("身份证读取失败，ret=" + nRt);
+            if (nRt == -2) sendRelaunch();
             return;
         }
 
@@ -181,6 +183,18 @@ public class MainActivity extends AppCompatActivity {
         blePeripheralUtils.sendJson(JSON.toJSONString(idCardInfo));
     }
 
+    private void sendRelaunch() {
+        JSONObject jsonObj = new JSONObject();
+        jsonObj.put("action", "event");
+
+        JSONObject payloadObj = new JSONObject();
+        payloadObj.put("event", "relaunch");
+
+        jsonObj.put("payload", payloadObj);
+
+        blePeripheralUtils.sendJson(jsonObj.toJSONString());
+    }
+
     private void readSiCard() {
         if (!mdev.isOpen()) {
             //showString("设备未连接!"); return;
@@ -191,7 +205,9 @@ public class MainActivity extends AppCompatActivity {
         byte[] cardInfo = new byte[500];
         nRt = mdev.iReadSiCard((byte) 0x11, cardInfo);
         if (nRt != 0) {
-            showString("读卡失败:"+ nRt); return;
+            showString("读卡失败:"+ nRt);
+            if (nRt == -1008) sendRelaunch();
+            return;
         }
         try {
             //beep
@@ -247,7 +263,7 @@ public class MainActivity extends AppCompatActivity {
     private void showQrCode() {
         ImageView ivQrCode = findViewById(R.id.ivQrCode);
         JSONObject jsonObj = new JSONObject();
-        jsonObj.put("type", "读卡器");
+        jsonObj.put("type", "身份证阅读器");
         jsonObj.put("bluetooth_name", BtUtils.getName());
         jsonObj.put("name", "Q1");
         jsonObj.put("sn", Build.SERIAL);
@@ -332,6 +348,8 @@ public class MainActivity extends AppCompatActivity {
                     readIDCard();
                 } else if("si_card".equals(cmd)) {
                     readSiCard();
+                } else if("relaunch".equals(cmd)) {
+                    AppUtils.relaunchApp(true);
                 }
             }
         }
