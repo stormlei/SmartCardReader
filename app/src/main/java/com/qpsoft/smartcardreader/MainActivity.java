@@ -51,29 +51,37 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        startService(new Intent(this, BleService.class));
         initBleCallBack();
+
         new Handler().postDelayed(new Runnable() {
             @Override
             public void run() {
-                showQrCode();
+                startService(new Intent(MainActivity.this, BleService.class));
             }
         }, 5000);
+
+//        new Handler().postDelayed(new Runnable() {
+//            @Override
+//            public void run() {
+//                showQrCode();
+//            }
+//        }, 5000);
 
         InitEditText();
         InitButton();
 
-        mdev = new DeviceLib(getApplicationContext(), new DeviceStatusCallback() {
-            @Override
-            public void UsbAttach() {
-                showToast(getString(R.string.dev_link_succ));
-                mdev.openDevice(100);
-            }
-            @Override
-            public void UsbDeAttach() {
-                showToast(getString(R.string.dev_link_error));
-            }
-        });
+//        mdev = new DeviceLib(getApplicationContext(), new DeviceStatusCallback() {
+//            @Override
+//            public void UsbAttach() {
+//                showToast(getString(R.string.dev_link_succ));
+//                mdev.openDevice(100);
+//            }
+//            @Override
+//            public void UsbDeAttach() {
+//                showToast(getString(R.string.dev_link_error));
+//            }
+//        });
+        mdev = new DeviceLib(getApplicationContext());
         mdev.openDevice(100);
 
         //openHttpServer();
